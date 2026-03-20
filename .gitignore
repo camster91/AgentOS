@@ -1,0 +1,57 @@
+# Gradle
+.gradle/
+build/
+gradle-app.setting
+gradlew
+gradlew.bat
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Android
+.android/
+local.properties
+*.apk
+*.ap_
+*.dex
+*.class
+bin/
+gen/
+out/
+
+# Kotlin
+*.kexe
+.kotlin/build/
+
+# Java
+*.jar
+*.war
+*.ear
+*.class
+target/
+
+# Misc
+*.log
+*.swp
+*.swo
+node_modules/
+dist/
+*.bak
+.env
+.env.local
