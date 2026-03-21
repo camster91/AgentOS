@@ -1,0 +1,14 @@
+﻿Build successful. Here's what was done:
+
+**New module: `agents/ai-core`**
+- `agents/ai-core/build.gradle.kts` ΓÇö OkHttp + Gson dependencies
+- `agents/ai-core/src/main/kotlin/com/agentOS/ai/GeminiClient.kt` ΓÇö `ChatTurn` data class + `GeminiClient` with `chat()` method that calls Gemini 2.0 Flash API, returns `"AI unavailable"` on failure
+
+**Wired into all 4 agents:**
+- `NotesAgent`, `CalendarAgent`, `TasksAgent`, `WeatherAgent` ΓÇö each now takes a `GeminiClient` constructor parameter. When input doesn't match any known command, it calls `gemini.chat()` with an agent-specific system prompt instead of returning static help text.
+
+**Updated call sites:**
+- `Main.kt` ΓÇö creates a shared `GeminiClient` (reads `GEMINI_API_KEY` env var, falls back to the provided key) and passes it to all agents
+- `settings.gradle.kts` ΓÇö includes `:agents:ai-core`
+- `core/build.gradle.kts` ΓÇö depends on `:agents:ai-core`
+- `NotesAgentTest.kt` ΓÇö updated to pass a test `GeminiClient`

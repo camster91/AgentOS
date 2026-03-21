@@ -1,0 +1,78 @@
+Add cloud sync to AgentOS so agents share data across devices. Build a lightweight sync backend.
+
+First read settings.gradle.kts, core/build.gradle.kts, and the existing agent files to understand the project structure.
+
+1. Create new module: sync/
+   - sync/build.gradle.kts — Kotlin JVM module with Ktor server:
+     ```kotlin
+     plugins {
+         kotlin("jvm")
+         application
+     }
+     
+     application {
+         mainClass.set("com.agentOS.sync.SyncServerKt")
+     }
+     
+     dependencies {
+         implementation("io.ktor:ktor-server-netty:2.3.7")
+         implementation("io.ktor:ktor-server-content-negotiation:2.3.7")
+         implementation("io.ktor:ktor-serialization-gson:2.3.7")
+         implementation("com.google.code.gson:gson:2.10.1")
+         implementation("com.squareup.okhttp3:okhttp:4.12.0")
+         testImplementation(kotlin("test"))
+     }
+     ```
+   
+   - sync/src/main/kotlin/com/agentOS/sync/SyncServer.kt:
+     - data class SyncEntry(val userId: String, val agentId: String, val key: String, val value: String, val timestamp: Long)
+     - In-memory store: val store = mutableMapOf<String, MutableList<SyncEntry>>()
+     - HTTP server on port 8080 using Ktor:
+       - POST /sync/push — body: SyncEntry, stores in memory, returns 200 OK
+       - GET /sync/pull?userId=&agentId=&since= — returns List<SyncEntry> filtered by userId+agentId and timestamp >= since
+     - fun main() to start the server
+   
+   - sync/src/main/kotlin/com/agentOS/sync/SyncClient.kt:
+     - class SyncClient(val serverUrl: String = "http://10.0.2.2:8080")
+     - fun push(userId: String, agentId: String, key: String, value: String): Boolean (returns false on failure, never throws)
+     - fun pull(userId: String, agentId: String, since: Long = 0L): List<SyncEntry> (returns empty list on failure)
+     - Uses OkHttp with 5 second timeout
+
+   - sync/src/main/kotlin/com/agentOS/sync/DeviceId.kt:
+     - object DeviceId
+     - fun get(storageDir: String = System.getProperty("user.home") + "/.agentOS"): String
+     - Reads UUID from ~/.agentOS/device-id.txt, creates if not exists
+
+2. Add tests in sync/src/test/kotlin/com/agentOS/sync/SyncTest.kt:
+   - Test SyncEntry data class
+   - Test that SyncClient handles connection errors gracefully (returns empty/false)
+
+3. Add :sync to settings.gradle.kts (add line: include(":sync"))
+
+4. Create android/src/main/java/com/agentOS/android/AgentOSApplication.kt:
+   ```kotlin
+   package com.agentOS.android
+   
+   import android.app.Application
+   
+   class AgentOSApplication : Application() {
+       override fun onCreate() {
+           super.onCreate()
+           // SyncClient initialized here in future
+       }
+   }
+   ```
+   
+   Also update android/src/main/AndroidManifest.xml to add android:name=".AgentOSApplication" to the <application> tag.
+
+5. Run: ./gradlew build
+   If it fails, fix errors. Common issues:
+   - Ktor version compatibility — use 2.3.7 consistently
+   - Missing application plugin configuration
+   - The :sync module is pure JVM, not Android
+
+6. Run: ./gradlew test
+
+7. Commit: git add -A && git commit -m "Phase 7: Cloud sync backend with Ktor + client integration"
+
+IMPORTANT: Do NOT try to run the sync server as part of this task. Just verify it builds successfully.

@@ -1,5 +1,6 @@
 package com.agentOS.agents
 
+import com.agentOS.ai.GeminiClient
 import com.agentOS.api.*
 import java.util.UUID
 
@@ -11,7 +12,7 @@ data class Note(
     val linkedNotes: List<String>
 )
 
-class NotesAgent(private val storage: StorageAPI) : Agent() {
+class NotesAgent(private val storage: StorageAPI, private val gemini: GeminiClient) : Agent() {
 
     override val scope = AgentScope(
         id = "com.agentOS.notes",
@@ -48,7 +49,7 @@ class NotesAgent(private val storage: StorageAPI) : Agent() {
                 val id = text.removePrefix("delete note ").trim()
                 deleteNote(id)
             }
-            else -> helpText()
+            else -> aiChat(text)
         }
         return ChatMessage("assistant", response)
     }
@@ -168,6 +169,15 @@ class NotesAgent(private val storage: StorageAPI) : Agent() {
             content = parts[4],
             createdAt = parts[2].toLongOrNull() ?: 0L,
             linkedNotes = links
+        )
+    }
+
+    private fun aiChat(userMessage: String): String {
+        return gemini.chat(
+            systemPrompt = """You are the Notes Agent for AgentOS. You help users manage notes.
+Available commands you can suggest: create note: <title> | <content>, list notes, get note <id or title>, search notes <query>, delete note <id>.
+Be helpful and concise. If the user's intent maps to a command, tell them the exact command to use.""",
+            userMessage = userMessage
         )
     }
 

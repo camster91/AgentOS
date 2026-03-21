@@ -1,0 +1,178 @@
+Implement Phase 3 for AgentOS: Sandbox isolation and resource limits.
+
+The project is at the current directory. Current state: :core and :api modules, with InMemoryStorage, FileStorage, PermissionManager, AgentRegistry, EventBus, NotesAgent, CalendarAgent, and a CLI runner all working.
+
+## Step 1: AgentPackage data class
+
+Create core/src/main/kotlin/com/agentOS/core/sandbox/AgentPackage.kt:
+
+```kotlin
+package com.agentOS.core.sandbox
+
+import java.io.File
+import java.util.jar.JarFile
+
+data class AgentPackage(
+    val name: String,
+    val version: String,
+    val mainClass: String,
+    val capabilities: Set<String>,
+    val author: String = "Unknown",
+    val description: String = "",
+    val storageQuotaBytes: Long = 100_000_000
+) {
+    companion object {
+        /**
+         * Load an AgentPackage from a JAR file by reading its manifest.
+         * JAR manifest attributes:
+         * - Agent-Name: <name>
+         * - Agent-Version: <version>
+         * - Agent-Main-Class: <fully qualified class name>
+         * - Agent-Capabilities: <comma-separated list>
+         * - Agent-Author: <author>
+         * - Agent-Description: <description>
+         * - Agent-Storage-Quota: <bytes>
+         * 
+         * Returns null if the JAR doesn't have required agent manifest attributes.
+         */
+        fun load(jarFile: File): AgentPackage? {
+            // Implementation
+        }
+    }
+}
+```
+
+## Step 2: SandboxedAgentLoader
+
+Create core/src/main/kotlin/com/agentOS/core/sandbox/SandboxedAgentLoader.kt:
+
+```kotlin
+package com.agentOS.core.sandbox
+
+import com.agentOS.api.Agent
+import java.io.File
+import java.net.URLClassLoader
+
+class SandboxedAgentLoader(private val sandboxRoot: File) {
+    
+    /**
+     * Load an agent class from a JAR file using an isolated URLClassLoader.
+     * Each agent gets its own ClassLoader to prevent class pollution between agents.
+     * 
+     * @param agentPackage The package manifest describing the agent
+     * @param jarFile The JAR file containing the agent
+     * @return Instantiated Agent object
+     * @throws IllegalArgumentException if mainClass doesn't extend Agent
+     */
+    fun loadAgent(agentPackage: AgentPackage, jarFile: File): Agent {
+        // Create isolated URLClassLoader with parent = this class's classloader (for api classes)
+        // Load the mainClass from the JAR
+        // Instantiate it (assume no-arg constructor for now)
+        // Verify it's an Agent subclass
+        // Return it
+    }
+    
+    /**
+     * Get the sandbox directory for a specific agent.
+     * Each agent gets its own subdirectory: sandboxRoot/<agentId>/
+     */
+    fun getAgentSandboxDir(agentId: String): File {
+        val dir = File(sandboxRoot, agentId.replace(".", "_"))
+        dir.mkdirs()
+        return dir
+    }
+}
+```
+
+## Step 3: SandboxedStorage
+
+Create core/src/main/kotlin/com/agentOS/core/sandbox/SandboxedStorage.kt:
+
+This wraps FileStorage but adds extra path validation to prevent agents from writing outside their sandbox:
+
+```kotlin
+package com.agentOS.core.sandbox
+
+import com.agentOS.api.AgentScope
+import com.agentOS.api.StorageAPI
+import com.agentOS.core.storage.FileStorage
+import com.agentOS.core.storage.StorageQuotaExceededException
+import java.io.File
+
+class SandboxedStorage(scope: AgentScope, sandboxDir: File) : StorageAPI {
+    private val inner = FileStorage(scope, sandboxDir)
+    private val canonicalSandbox = sandboxDir.canonicalPath
+    
+    private fun validateKey(key: String) {
+        // Sanitize key to prevent path traversal
+        // Check that the resolved path is within sandboxDir
+        require(!key.contains("..")) { "Key cannot contain '..' path traversal" }
+        require(!key.startsWith("/")) { "Key cannot be absolute path" }
+    }
+    
+    override suspend fun writeString(key: String, value: String) {
+        validateKey(key)
+        inner.writeString(key, value)
+    }
+    
+    // Delegate all other methods to inner, with validateKey for write operations
+    // ...
+}
+```
+
+## Step 4: SandboxedDispatcher
+
+Create core/src/main/kotlin/com/agentOS/core/sandbox/SandboxedDispatcher.kt:
+
+```kotlin
+package com.agentOS.core.sandbox
+
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.asCoroutineDispatcher
+import java.util.concurrent.Executors
+
+object SandboxedDispatcher {
+    /**
+     * Create a limited-parallelism dispatcher for an agent.
+     * Default: 2 threads max per agent (respects AgentScope.cpuLimitPercent indirectly)
+     */
+    fun forAgent(agentId: String, maxParallelism: Int = 2): CoroutineDispatcher {
+        return Executors.newFixedThreadPool(maxParallelism) { r ->
+            Thread(r, "agent-$agentId-${System.nanoTime()}")
+        }.asCoroutineDispatcher()
+    }
+}
+```
+
+## Step 5: Tests
+
+Create core/src/test/kotlin/com/agentOS/core/sandbox/AgentPackageTest.kt:
+- Test load() returns null for a JAR without agent manifest attributes
+- Test load() returns AgentPackage for a JAR with correct manifest (create a temp JAR with manifest)
+
+Create core/src/test/kotlin/com/agentOS/core/sandbox/SandboxedStorageTest.kt:
+- Test write and read within sandbox works
+- Test key with ".." throws IllegalArgumentException
+- Test key starting with "/" throws IllegalArgumentException
+- Test quota exceeded throws StorageQuotaExceededException (create scope with tiny quota)
+
+Create core/src/test/kotlin/com/agentOS/core/sandbox/SandboxedAgentLoaderTest.kt:
+- Test getAgentSandboxDir creates directory
+- Test getAgentSandboxDir for different agent IDs creates different directories
+
+## Step 6: Run build and tests
+
+After implementing, run: ./gradlew build
+Fix any compilation errors.
+Run: ./gradlew test
+Fix any test failures.
+
+Then: git add -A && git commit -m "Phase 3: Sandbox isolation and resource limits"
+
+## Important notes:
+- Keep all code in :core module
+- SandboxedAgentLoader.loadAgent() is tricky to test without a real JAR. The test can be minimal (just test getAgentSandboxDir)
+- Use java.io.File for sandbox directory operations
+- No new external dependencies needed
+- All code must be pure JVM (no Android)
+- The api module interfaces (StorageAPI etc.) are in com.agentOS.api package

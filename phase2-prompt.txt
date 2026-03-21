@@ -1,0 +1,117 @@
+Implement Phase 2 for AgentOS: Notes agent + Calendar agent + CLI runner.
+
+Current project structure has :core and :api modules working. Now add:
+
+## Step 1: Add agents/notes submodule
+
+Create a new Gradle subproject at agents/notes/ (but DO NOT add it to settings.gradle.kts yet — add it as a directory inside :core for now, OR add it as a proper subproject — your choice based on what compiles cleanly).
+
+Actually, let's keep it simple: create the Notes agent as a class inside :core module at:
+core/src/main/kotlin/com/agentOS/agents/NotesAgent.kt
+
+NotesAgent requirements:
+- Extends Agent class from :api
+- Constructor takes a StorageAPI instance (use InMemoryStorage)
+- AgentScope: id="com.agentOS.notes", name="Notes Agent", capabilities=setOf("storage", "ui")
+- onChat() parses text commands:
+  - "create note: <title> | <content>" or "create note <title>: <content>" → creates note, returns confirmation
+  - "list notes" → returns all note titles with IDs
+  - "get note <id>" or "get note <title>" → returns full note
+  - "search notes <query>" → searches title and content, returns matches
+  - "delete note <id>" → deletes note
+  - anything else → returns help text listing available commands
+- Note data class: Note(id: String, title: String, content: String, createdAt: Long, linkedNotes: List<String>)
+- Auto-linking: when creating a note, scan existing note titles and if content references them, add those note IDs to linkedNotes
+- Store notes as JSON strings in StorageAPI (use kotlinx.serialization OR manually serialize to/from simple format)
+- NOTE: Do NOT use kotlinx.serialization — use a simple manual format. Store each note as: "id|title|timestamp|content" with linkedNotes as a separate "id-links|noteId|link1,link2" entry. Or use any simple approach that doesn't require extra dependencies.
+
+## Step 2: Port Calendar agent
+
+Create core/src/main/kotlin/com/agentOS/agents/CalendarAgent.kt
+Port from this existing code (make it actually work, not placeholder):
+
+```kotlin
+class CalendarAgent : Agent {
+    override val scope = AgentScope(
+        id = "com.agentOS.calendar",
+        name = "Calendar Agent", 
+        version = "0.1.0",
+        author = "Cameron",
+        description = "Natural language calendar. Schedule via conversation.",
+        capabilities = setOf("storage", "notifications", "calendar", "ui"),
+        optionalCapabilities = setOf("contacts", "timezone"),
+        storageQuotaBytes = 100_000_000
+    )
+    // Has placeholder onChat and TODO private methods
+}
+```
+
+Implement CalendarAgent with:
+- Constructor takes StorageAPI
+- Stores events as simple text in storage (no external dependencies)
+- Event: id, title, startTime (epoch ms), endTime (epoch ms), location (optional)
+- onChat() commands:
+  - "schedule <title> on <date> at <time>" → creates event (parse simple date formats like "tomorrow", "Monday", "Jan 15")
+  - "list events" or "what's on my calendar" → shows upcoming events (next 7 days)
+  - "list events <date>" → events on specific date
+  - "cancel event <id or title>" → deletes event
+  - anything else → help text
+
+## Step 3: CLI runner
+
+Create core/src/main/kotlin/com/agentOS/core/Main.kt:
+- fun main() entry point
+- Calls AgentOS.initialize()
+- Creates InMemoryStorage for each agent
+- Instantiates NotesAgent and CalendarAgent
+- Registers both in AgentRegistry
+- Prints welcome message
+- REPL loop:
+  - Prompts user with "> "
+  - Reads line from stdin
+  - If starts with "notes:" or "note " → routes to NotesAgent.onChat()
+  - If starts with "calendar:" or "schedule " or "what's on " → routes to CalendarAgent.onChat()
+  - If "agents" → lists registered agents
+  - If "help" → shows routing instructions
+  - If "quit" or "exit" → exits loop
+  - Otherwise → tries NotesAgent first, if response contains "I don't understand" tries CalendarAgent
+- Print each agent response
+- Use runBlocking for coroutine context
+
+Add to core/build.gradle.kts:
+```kotlin
+application {
+    mainClass.set("com.agentOS.core.MainKt")
+}
+```
+Also add `id("application")` to the plugins block in core/build.gradle.kts.
+
+## Step 4: Tests for NotesAgent
+
+Create core/src/test/kotlin/com/agentOS/agents/NotesAgentTest.kt:
+- Test create note returns confirmation with ID
+- Test list notes returns created notes
+- Test get note by ID
+- Test search notes finds by content
+- Test delete note removes it
+- Test auto-linking: create note A, create note B that mentions note A's title → note B links to note A
+- Use InMemoryStorage in tests
+- Use runBlocking for suspend calls
+
+## Step 5: After implementing all files
+
+Run: ./gradlew build
+Fix any compilation errors.
+Run: ./gradlew test
+Fix any test failures.
+
+Then: git add -A && git commit -m "Phase 2: Notes + Calendar agents + CLI runner"
+
+## Important notes:
+- Keep ALL code in :core module (no new submodules needed yet)
+- No external JSON libraries — use simple string-based storage
+- The api module must NOT be modified (AgentAPI.kt, Agent.kt, AgentScope.kt are locked)
+- The api module provides: Agent, AgentScope, ChatMessage, AgentMetadata, StorageAPI, etc.
+- CalendarAgent does not need to implement the full CalendarAPI interface — it just extends Agent
+- CalendarAgent.api field: create a minimal NoOpAgentAPI that returns null for optional APIs and InMemoryStorage for storage
+- Do not use Android-specific libraries — pure JVM only

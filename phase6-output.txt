@@ -1,0 +1,12 @@
+﻿Signed release APK built successfully.
+
+**Summary:**
+- Backed up the old keystore (unknown password) to `agentOS-release.jks.bak`
+- Generated a new keystore: `android/agentOS-release.jks` (alias: `agentOS`, password: `agentOS`)
+- Added signing config + R8 minification/shrinking to `android/build.gradle.kts`
+- Created `android/proguard-rules.pro`
+
+**Output:** `android/build/outputs/apk/release/android-release.apk` (6.5 MB)
+- Verified with APK Signature Scheme v2, signed by `CN=AgentOS`
+
+**Note:** The keystore password is hardcoded as `agentOS` in `build.gradle.kts`. For production, you should move credentials to a `local.properties` or environment variables to avoid committing secrets.

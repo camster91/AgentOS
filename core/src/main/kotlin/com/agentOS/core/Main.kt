@@ -4,6 +4,7 @@ import com.agentOS.agents.CalendarAgent
 import com.agentOS.agents.NotesAgent
 import com.agentOS.agents.TasksAgent
 import com.agentOS.agents.WeatherAgent
+import com.agentOS.ai.GeminiClient
 import com.agentOS.api.ChatMessage
 import com.agentOS.api.AgentScope
 import com.agentOS.core.marketplace.LocalMarketplace
@@ -49,10 +50,14 @@ fun main() {
         capabilities = setOf("storage", "ui")
     )
 
-    val notesAgent = NotesAgent(InMemoryStorage(notesScope))
-    val calendarAgent = CalendarAgent(InMemoryStorage(calendarScope))
-    val weatherAgent = WeatherAgent(InMemoryStorage(weatherScope))
-    val tasksAgent = TasksAgent(InMemoryStorage(tasksScope))
+    val gemini = GeminiClient(
+        apiKey = System.getenv("GEMINI_API_KEY") ?: "AIzaSyAPNvfGU6hlUAop3vE9BbJbukXKpvY6SB4"
+    )
+
+    val notesAgent = NotesAgent(InMemoryStorage(notesScope), gemini)
+    val calendarAgent = CalendarAgent(InMemoryStorage(calendarScope), gemini)
+    val weatherAgent = WeatherAgent(InMemoryStorage(weatherScope), gemini)
+    val tasksAgent = TasksAgent(InMemoryStorage(tasksScope), gemini)
 
     AgentOS.registry.register(notesAgent)
     AgentOS.registry.register(calendarAgent)

@@ -1,0 +1,189 @@
+Implement Phase 4 (Alpha release) for AgentOS. The project is at the current directory.
+
+Current state: :core and :api modules with Notes agent, Calendar agent, sandbox isolation, CLI runner all working and tested.
+
+## Step 1: Weather Agent
+
+Create core/src/main/kotlin/com/agentOS/agents/WeatherAgent.kt
+
+Requirements:
+- Extends Agent class
+- Uses Open-Meteo API (free, no API key needed): https://api.open-meteo.com/v1/forecast
+- Uses OpenStreetMap Nominatim for geocoding (city name → lat/lon): https://nominatim.openstreetmap.org/search
+- Constructor takes StorageAPI (use NoOpAgentAPI pattern from CalendarAgent)
+- AgentScope: id="com.agentOS.weather", name="Weather Agent", capabilities=setOf("storage", "ui")
+- HTTP calls: use java.net.HttpURLConnection (no extra dependencies)
+- Cache city coordinates in storage (avoid hammering Nominatim)
+- Nominatim API: GET https://nominatim.openstreetmap.org/search?q=<city>&format=json&limit=1
+  - Returns JSON array, parse first result for "lat" and "lon" fields
+  - IMPORTANT: Set User-Agent header to "AgentOS/0.1.0" (Nominatim requires this)
+- Open-Meteo API: GET https://api.open-meteo.com/v1/forecast?latitude=<lat>&longitude=<lon>&current_weather=true&daily=temperature_2m_max,temperature_2m_min,weathercode&timezone=auto&forecast_days=7
+  - Parse current_weather object for temperature and windspeed
+  - Parse daily arrays for forecast
+
+Parse JSON manually using string operations (no external JSON library):
+- For Nominatim: extract "lat" and "lon" from first JSON object in array
+- For Open-Meteo: extract from current_weather object
+
+onChat() commands:
+- "weather <city>" → current weather for city
+- "forecast <city>" → 3-day forecast
+- "weather tomorrow" → tomorrow's weather (use last queried city or ask for city)
+- anything else → help text listing commands
+
+Store last queried city in storage so "weather tomorrow" works without specifying city.
+
+Format output nicely:
+- "Current weather in Toronto: 15°C, Wind 20 km/h"
+- "3-day forecast for Toronto:\n  Today: 12-18°C\n  Tomorrow: 10-16°C\n  Day 3: 9-14°C"
+
+## Step 2: Tasks Agent  
+
+Create core/src/main/kotlin/com/agentOS/agents/TasksAgent.kt
+
+Requirements:
+- Extends Agent class
+- Constructor takes StorageAPI
+- AgentScope: id="com.agentOS.tasks", name="Tasks Agent", capabilities=setOf("storage", "ui")
+- Task data: id (UUID-style string), title, priority (LOW/MEDIUM/HIGH), dueDate (epoch ms, optional), completed (boolean), createdAt (epoch ms)
+- Store tasks as simple delimited strings in StorageAPI (same pattern as NotesAgent)
+- Parse due dates: "today", "tomorrow", "next Monday", "Jan 15", ISO date format (YYYY-MM-DD)
+  - Use java.time.LocalDate for date calculations
+- Priority parsing: "high", "medium", "low" in the command
+
+onChat() commands:
+- "add task: <title> [priority: high/medium/low] [due: <date>]" → creates task
+- "add task <title>" → creates task with MEDIUM priority and no due date
+- "list tasks" → shows all incomplete tasks with IDs, priorities, due dates
+- "complete task <id or title>" → marks task as complete
+- "due today" or "tasks due today" → shows tasks due today
+- "due this week" → shows tasks due in next 7 days
+- "delete task <id or title>" → removes task
+- "all tasks" → shows all tasks including completed
+- anything else → help text
+
+## Step 3: LocalMarketplace
+
+Create core/src/main/kotlin/com/agentOS/core/marketplace/LocalMarketplace.kt:
+
+```kotlin
+package com.agentOS.core.marketplace
+
+import com.agentOS.api.Agent
+import com.agentOS.core.AgentRegistry
+import com.agentOS.core.sandbox.AgentPackage
+import com.agentOS.core.sandbox.SandboxedAgentLoader
+import java.io.File
+
+class LocalMarketplace(
+    private val marketplaceDir: File,
+    private val sandboxRoot: File,
+    private val registry: AgentRegistry
+) {
+    private val loader = SandboxedAgentLoader(sandboxRoot)
+    
+    /**
+     * Scan marketplaceDir for .jar files with valid AgentPackage manifests.
+     * Returns list of available packages.
+     */
+    fun listAvailable(): List<AgentPackage> {
+        // Scan for .jar files, try AgentPackage.load() on each
+        // Return non-null results
+    }
+    
+    /**
+     * Install an agent from marketplace by name.
+     * Finds the JAR, loads it, registers in AgentRegistry.
+     */
+    fun install(name: String): Boolean {
+        // Find JAR matching the name
+        // Load agent using SandboxedAgentLoader
+        // Register in AgentRegistry
+        // Return success/failure
+    }
+    
+    /**
+     * List installed agent IDs.
+     */
+    fun listInstalled(): List<String> {
+        return registry.listAgents().map { it.id }
+    }
+}
+```
+
+## Step 4: Enhanced CLI REPL
+
+Update core/src/main/kotlin/com/agentOS/core/Main.kt to:
+
+1. Initialize WeatherAgent and TasksAgent alongside Notes and Calendar
+2. Register all 4 agents in AgentRegistry
+3. Initialize LocalMarketplace with directories:
+   - marketplaceDir = File(System.getProperty("user.home"), ".agentos/marketplace")
+   - sandboxRoot = File(System.getProperty("user.home"), ".agentos/sandbox")
+4. Enhanced routing:
+   - "weather" or "forecast" in input → WeatherAgent
+   - "task" or "add task" or "due today" → TasksAgent
+   - "notes:" or "create note" or "list notes" or "search notes" → NotesAgent
+   - "calendar:" or "schedule" or "what's on" → CalendarAgent
+   - "agents" → list all registered agents with names and descriptions
+   - "install <name>" → LocalMarketplace.install(name)
+   - "marketplace" or "available" → LocalMarketplace.listAvailable()
+   - "help" → comprehensive help showing all agents and their commands
+   - "quit" or "exit" → exit
+5. Print a nice banner on startup
+
+## Step 5: Build and verify
+
+Run: ./gradlew build
+Fix any compilation errors.
+Run: ./gradlew test
+Fix any test failures.
+
+## Step 6: Commit and push to GitHub
+
+Run:
+git add -A
+git commit -m "Phase 4: Alpha release — Notes, Calendar, Tasks, Weather agents"
+git push origin main
+
+## Step 7: Create GitHub release
+
+Run this gh command to create the release:
+gh release create v0.1.0-alpha --title "AgentOS v0.1.0 Alpha" --notes "## AgentOS v0.1.0 Alpha
+
+First alpha release of AgentOS — a conversational agent-based operating system.
+
+### Agents included
+- **Notes Agent** — Create, search, list, and delete notes with auto-linking
+- **Calendar Agent** — Natural language scheduling with date parsing
+- **Tasks Agent** — Task management with priorities, due dates, and filtering
+- **Weather Agent** — Real-time weather via Open-Meteo API (no API key needed)
+
+### Core Infrastructure
+- Agent sandbox with ClassLoader isolation
+- Storage quota enforcement (InMemoryStorage + FileStorage)
+- Permission system via PermissionManager
+- Coroutine-based EventBus pub/sub
+- Local marketplace for JAR-based agent installation
+- CLI REPL with multi-agent routing
+
+### Running the CLI
+\`\`\`
+./gradlew :core:run
+\`\`\`
+
+### Build
+\`\`\`
+./gradlew build
+./gradlew test
+\`\`\`"
+
+## Important notes:
+- WeatherAgent HTTP calls: use java.net.URL.openConnection() as HttpURLConnection
+- Set timeouts: connectTimeout = 5000, readTimeout = 10000
+- Handle network errors gracefully (return error message string, don't crash)
+- TasksAgent date parsing: use java.time.LocalDate (available in JVM 8+)
+- No external JSON or HTTP libraries — pure JVM standard library only
+- All code stays in :core module (no new submodules)
+- Do not modify Agent.kt, AgentAPI.kt, AgentScope.kt in :api module
+- The NoOpAgentAPI pattern is already in core/src/main/kotlin/com/agentOS/agents/NoOpAgentAPI.kt — use it

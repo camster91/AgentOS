@@ -1,5 +1,6 @@
 package com.agentOS.agents
 
+import com.agentOS.ai.GeminiClient
 import com.agentOS.api.Agent
 import com.agentOS.api.AgentAPI
 import com.agentOS.api.AgentScope
@@ -24,7 +25,7 @@ data class Task(
 
 enum class Priority { LOW, MEDIUM, HIGH }
 
-class TasksAgent(private val storage: StorageAPI) : Agent() {
+class TasksAgent(private val storage: StorageAPI, private val gemini: GeminiClient) : Agent() {
 
     override val scope = AgentScope(
         id = "com.agentOS.tasks",
@@ -58,7 +59,7 @@ class TasksAgent(private val storage: StorageAPI) : Agent() {
             }
             lower == "due today" || lower == "tasks due today" -> dueToday()
             lower == "due this week" || lower == "tasks due this week" -> dueThisWeek()
-            else -> helpText()
+            else -> aiChat(text)
         }
         return ChatMessage("assistant", response)
     }
@@ -262,6 +263,16 @@ class TasksAgent(private val storage: StorageAPI) : Agent() {
         } catch (e: Exception) {
             null
         }
+    }
+
+    private fun aiChat(userMessage: String): String {
+        return gemini.chat(
+            systemPrompt = """You are the Tasks Agent for AgentOS. You help users manage tasks with priorities and due dates.
+Available commands you can suggest: add task: <title> [priority: high/medium/low] [due: <date>], list tasks, all tasks, complete task <id|title>, delete task <id|title>, due today, due this week.
+Date formats: today, tomorrow, next Monday, Jan 15, 2026-03-25.
+Be helpful and concise. If the user's intent maps to a command, tell them the exact command to use.""",
+            userMessage = userMessage
+        )
     }
 
     private fun helpText(): String = """Tasks Agent — Commands:

@@ -1,5 +1,6 @@
 package com.agentOS.agents
 
+import com.agentOS.ai.GeminiClient
 import com.agentOS.api.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -12,7 +13,7 @@ data class CalendarEvent(
     val location: String? = null
 )
 
-class CalendarAgent(private val storage: StorageAPI) : Agent() {
+class CalendarAgent(private val storage: StorageAPI, private val gemini: GeminiClient) : Agent() {
 
     override val scope = AgentScope(
         id = "com.agentOS.calendar",
@@ -45,7 +46,7 @@ class CalendarAgent(private val storage: StorageAPI) : Agent() {
                 val query = text.removePrefix("cancel event ").trim()
                 cancelEvent(query)
             }
-            else -> helpText()
+            else -> aiChat(text)
         }
         return ChatMessage("assistant", response)
     }
@@ -241,6 +242,16 @@ class CalendarAgent(private val storage: StorageAPI) : Agent() {
             startTime = parts[2].toLongOrNull() ?: return null,
             endTime = parts[3].toLongOrNull() ?: return null,
             location = parts[4].ifBlank { null }
+        )
+    }
+
+    private fun aiChat(userMessage: String): String {
+        return gemini.chat(
+            systemPrompt = """You are the Calendar Agent for AgentOS. You help users manage calendar events.
+Available commands you can suggest: schedule <title> on <date> at <time>, list events, list events <date>, what's on my calendar, cancel event <id or title>.
+Dates: today, tomorrow, Monday, Jan 15, 2026-01-15. Times: 3pm, 3:30pm, 15:30.
+Be helpful and concise. If the user's intent maps to a command, tell them the exact command to use.""",
+            userMessage = userMessage
         )
     }
 

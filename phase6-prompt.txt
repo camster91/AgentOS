@@ -1,0 +1,37 @@
+Create a signed release APK for AgentOS Android.
+
+First check if C:\Users\camst\Shift6\android\shift6-release.jks exists. Then:
+
+1. Generate a new keystore if one doesn't exist at android/agentOS-release.jks:
+   Run this command: keytool -genkey -v -keystore android/agentOS-release.jks -alias agentOS -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=AgentOS, OU=Ashbi Design, O=Ashbi Design, L=Toronto, ST=Ontario, C=CA" -storepass agentOS2026 -keypass agentOS2026
+
+2. Read android/build.gradle.kts and add signing config. Find the android { } block and add signingConfigs and update buildTypes. The exact Kotlin DSL should look like:
+
+```kotlin
+signingConfigs {
+    create("release") {
+        storeFile = file("agentOS-release.jks")
+        storePassword = "agentOS2026"
+        keyAlias = "agentOS"
+        keyPassword = "agentOS2026"
+    }
+}
+```
+
+And in buildTypes, find the `release {` block and add:
+```kotlin
+signingConfig = signingConfigs.getByName("release")
+isMinifyEnabled = true
+proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+```
+
+3. Build release APK: run ./gradlew :android:assembleRelease
+
+4. Add android/agentOS-release.jks to .gitignore
+
+5. Upload the release APK to GitHub release v0.1.0-android-alpha:
+   gh release upload v0.1.0-android-alpha android/build/outputs/apk/release/android-release.apk --clobber
+
+6. Commit: git add -A && git commit -m "Phase 6: Release signing config (keystore gitignored)"
+
+If the build fails, read the error carefully and fix the gradle syntax issues before retrying.

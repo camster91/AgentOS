@@ -17,4 +17,6 @@ dependencyResolutionManagement {
 rootProject.name = "AgentOS"
 include(":core")
 include(":api")
+include(":agents:ai-core")
 include(":android")
+include(":sync")

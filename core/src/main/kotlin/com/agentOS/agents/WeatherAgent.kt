@@ -1,5 +1,6 @@
 package com.agentOS.agents
 
+import com.agentOS.ai.GeminiClient
 import com.agentOS.api.Agent
 import com.agentOS.api.AgentAPI
 import com.agentOS.api.AgentScope
@@ -10,7 +11,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
-class WeatherAgent(private val storage: StorageAPI) : Agent() {
+class WeatherAgent(private val storage: StorageAPI, private val gemini: GeminiClient) : Agent() {
 
     override val scope = AgentScope(
         id = "com.agentOS.weather",
@@ -44,7 +45,7 @@ class WeatherAgent(private val storage: StorageAPI) : Agent() {
                 val city = text.removePrefix(text.substring(0, 9)).trim()
                 getForecast(city)
             }
-            else -> helpText()
+            else -> aiChat(text)
         }
         return ChatMessage("assistant", response)
     }
@@ -222,6 +223,15 @@ class WeatherAgent(private val storage: StorageAPI) : Agent() {
         val valueEnd = afterColon.indexOfFirst { it == ',' || it == '}' }
         val raw = if (valueEnd == -1) afterColon.trim() else afterColon.substring(0, valueEnd).trim()
         return raw.trim('"')
+    }
+
+    private fun aiChat(userMessage: String): String {
+        return gemini.chat(
+            systemPrompt = """You are the Weather Agent for AgentOS. You help users check weather and forecasts.
+Available commands you can suggest: weather <city>, forecast <city>, weather tomorrow.
+Be helpful and concise. If the user's intent maps to a command, tell them the exact command to use.""",
+            userMessage = userMessage
+        )
     }
 
     private fun helpText(): String = """Weather Agent — Commands:

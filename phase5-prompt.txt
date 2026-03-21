@@ -1,0 +1,101 @@
+Wire Gemini AI into all AgentOS agents. The Gemini API key is AIzaSyAPNvfGU6hlUAop3vE9BbJbukXKpvY6SB4
+
+First, read these files to understand the codebase:
+- settings.gradle.kts
+- core/build.gradle.kts
+- core/src/main/kotlin/com/agentOS/agents/NotesAgent.kt
+- core/src/main/kotlin/com/agentOS/agents/CalendarAgent.kt
+- core/src/main/kotlin/com/agentOS/agents/TasksAgent.kt
+- core/src/main/kotlin/com/agentOS/agents/WeatherAgent.kt
+- core/src/main/kotlin/com/agentOS/core/storage/FileStorage.kt
+
+Then make these changes:
+
+1. Create agents/ai-core/build.gradle.kts:
+```kotlin
+plugins {
+    kotlin("jvm")
+}
+
+dependencies {
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.code.gson:gson:2.10.1")
+    testImplementation(kotlin("test"))
+}
+```
+
+2. Create agents/ai-core/src/main/kotlin/com/agentOS/ai/GeminiClient.kt with:
+- data class ChatTurn(val role: String, val content: String)
+- class GeminiClient(val apiKey: String, val model: String = "gemini-2.0-flash")
+- fun chat(systemPrompt: String, userMessage: String, history: List<ChatTurn> = emptyList()): String
+  - Calls https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=apiKey
+  - Request body: { "system_instruction": { "parts": [{ "text": systemPrompt }] }, "contents": [ ...history as { "role": role, "parts": [{"text": content}] }, { "role": "user", "parts": [{"text": userMessage}] } ] }
+  - Parse response: response.candidates[0].content.parts[0].text
+  - On any exception, return "AI unavailable: ${e.message}"
+
+3. Create agents/ai-core/src/test/kotlin/com/agentOS/ai/GeminiClientTest.kt:
+- Test ChatTurn creation
+- Test that GeminiClient returns fallback on network error
+
+4. Update settings.gradle.kts to add: include(":agents:ai-core")
+
+5. Update core/build.gradle.kts to add dependency on :agents:ai-core:
+   implementation(project(":agents:ai-core"))
+
+6. Update each agent to accept optional geminiClient: GeminiClient? = null and use it when available:
+   - Add conversationHistory: MutableList<ChatTurn> = mutableListOf() to each agent
+   - In the respond() or handle() method, if geminiClient != null, call geminiClient.chat(systemPrompt, message, conversationHistory) and add to history
+   - Keep history <= 10 turns (drop from front when over limit)
+   - System prompts:
+     * NotesAgent: "You are a notes assistant. Help the user manage their notes conversationally."
+     * CalendarAgent: "You are a calendar assistant. Current date: ${java.time.LocalDate.now()}. Help schedule events."
+     * TasksAgent: "You are a productivity assistant. Help manage tasks and priorities."
+     * WeatherAgent: "You are a weather assistant. Help with weather queries conversationally."
+
+7. Create core/src/main/kotlin/com/agentOS/core/ConversationMemory.kt:
+```kotlin
+package com.agentOS.core
+
+import com.agentOS.ai.ChatTurn
+import com.agentOS.core.storage.StorageAPI
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+
+class ConversationMemory(private val storage: StorageAPI) {
+    private val gson = Gson()
+    private val maxTurns = 50
+
+    fun getHistory(agentId: String): List<ChatTurn> {
+        return try {
+            val json = storage.get("memory_$agentId") ?: return emptyList()
+            val type = object : TypeToken<List<ChatTurn>>() {}.type
+            gson.fromJson(json, type) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun addTurn(agentId: String, turn: ChatTurn) {
+        val history = getHistory(agentId).toMutableList()
+        history.add(turn)
+        if (history.size > maxTurns) {
+            history.removeAt(0)
+        }
+        storage.set("memory_$agentId", gson.toJson(history))
+    }
+    
+    fun clearHistory(agentId: String) {
+        storage.delete("memory_$agentId")
+    }
+}
+```
+
+8. Run: ./gradlew build
+   If it fails, read the error output carefully and fix all compilation errors. Common issues:
+   - Storage API method names might be different (get/set/delete vs read/write/remove) — check FileStorage.kt
+   - Agent class constructors might need updating
+   - Import statements
+
+9. Run: ./gradlew test
+
+10. Commit: git add -A && git commit -m "Phase 5: Gemini AI integration -- all agents now AI-powered"

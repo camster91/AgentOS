@@ -1,5 +1,6 @@
 package com.agentOS.agents
 
+import com.agentOS.ai.GeminiClient
 import com.agentOS.api.AgentScope
 import com.agentOS.api.ChatMessage
 import com.agentOS.core.storage.InMemoryStorage
@@ -23,7 +24,7 @@ class NotesAgentTest {
 
     @BeforeEach
     fun setUp() {
-        agent = NotesAgent(InMemoryStorage(testScope))
+        agent = NotesAgent(InMemoryStorage(testScope), GeminiClient(apiKey = "test-key"))
     }
 
     private fun chat(text: String): String = runBlocking {
@@ -121,9 +122,9 @@ class NotesAgentTest {
     }
 
     @Test
-    fun `unknown command returns help text`() {
+    fun `unknown command falls back to AI response`() {
         val response = chat("do something random")
-        assertTrue(response.contains("I don't understand"))
-        assertTrue(response.contains("create note"))
+        // With a test API key, Gemini will return an "AI unavailable" fallback
+        assertTrue(response.startsWith("AI unavailable"), "Expected AI fallback, got: $response")
     }
 }
