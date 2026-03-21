@@ -2,10 +2,14 @@ package com.agentOS.core
 
 import com.agentOS.agents.CalendarAgent
 import com.agentOS.agents.NotesAgent
+import com.agentOS.agents.TasksAgent
+import com.agentOS.agents.WeatherAgent
 import com.agentOS.api.ChatMessage
-import com.agentOS.core.storage.InMemoryStorage
 import com.agentOS.api.AgentScope
+import com.agentOS.core.marketplace.LocalMarketplace
+import com.agentOS.core.storage.InMemoryStorage
 import kotlinx.coroutines.runBlocking
+import java.io.File
 
 fun main() {
     AgentOS.initialize()
@@ -28,21 +32,49 @@ fun main() {
         optionalCapabilities = setOf("contacts", "timezone"),
         storageQuotaBytes = 100_000_000
     )
+    val weatherScope = AgentScope(
+        id = "com.agentOS.weather",
+        name = "Weather Agent",
+        version = "0.1.0",
+        author = "Cameron",
+        description = "Real-time weather via Open-Meteo API. No API key needed.",
+        capabilities = setOf("storage", "ui")
+    )
+    val tasksScope = AgentScope(
+        id = "com.agentOS.tasks",
+        name = "Tasks Agent",
+        version = "0.1.0",
+        author = "Cameron",
+        description = "Task management with priorities, due dates, and filtering.",
+        capabilities = setOf("storage", "ui")
+    )
 
     val notesAgent = NotesAgent(InMemoryStorage(notesScope))
     val calendarAgent = CalendarAgent(InMemoryStorage(calendarScope))
+    val weatherAgent = WeatherAgent(InMemoryStorage(weatherScope))
+    val tasksAgent = TasksAgent(InMemoryStorage(tasksScope))
 
     AgentOS.registry.register(notesAgent)
     AgentOS.registry.register(calendarAgent)
+    AgentOS.registry.register(weatherAgent)
+    AgentOS.registry.register(tasksAgent)
+
+    val marketplaceDir = File(System.getProperty("user.home"), ".agentos/marketplace")
+    val sandboxRoot = File(System.getProperty("user.home"), ".agentos/sandbox")
+    val marketplace = LocalMarketplace(marketplaceDir, sandboxRoot, AgentOS.registry)
 
     println()
-    println("Welcome to AgentOS!")
+    println("╔══════════════════════════════════════╗")
+    println("║          AgentOS v0.1.0-alpha        ║")
+    println("║   Your conversational agent OS       ║")
+    println("╚══════════════════════════════════════╝")
+    println()
     println("Agents loaded: ${AgentOS.registry.listAgents().joinToString(", ") { it.name }}")
-    println("Type 'help' for routing info, 'quit' to exit.")
+    println("Type 'help' for commands, 'quit' to exit.")
     println()
 
     while (true) {
-        print("> ")
+        print("agentos> ")
         val line = readlnOrNull()?.trim() ?: break
         if (line.isBlank()) continue
 
@@ -56,21 +88,63 @@ fun main() {
                 println("Registered agents (${agents.size}):")
                 agents.forEach { println("  [${it.id}] ${it.name} v${it.version} — ${it.description}") }
             }
+            line.equals("marketplace", ignoreCase = true) || line.equals("available", ignoreCase = true) -> {
+                val available = marketplace.listAvailable()
+                if (available.isEmpty()) {
+                    println("No agents available in marketplace.")
+                    println("Place agent .jar files in: ${marketplaceDir.absolutePath}")
+                } else {
+                    println("Available agents (${available.size}):")
+                    available.forEach { println("  ${it.name} v${it.version} by ${it.author} — ${it.description}") }
+                }
+            }
+            line.startsWith("install ", ignoreCase = true) -> {
+                val name = line.removePrefix("install ").trim()
+                val success = marketplace.install(name)
+                if (success) {
+                    println("Installed agent: $name")
+                } else {
+                    println("Could not install '$name'. Check marketplace directory.")
+                }
+            }
             line.equals("help", ignoreCase = true) -> {
                 println("""
-AgentOS CLI — Routing:
-  notes: <command>    → Notes Agent (create, list, get, search, delete)
-  note <command>      → Notes Agent
-  calendar: <command> → Calendar Agent
-  schedule <...>      → Calendar Agent
-  what's on <...>     → Calendar Agent
-  agents              → List registered agents
-  help                → This message
-  quit / exit         → Exit
+AgentOS CLI — Commands:
+
+  Notes Agent:
+    notes: <command>         create note, list notes, get note, search notes, delete note
+    create note <title>      Quick create
+
+  Calendar Agent:
+    calendar: <command>      schedule, list events, cancel event
+    schedule <event>         Quick schedule
+    what's on <date>         Check calendar
+
+  Weather Agent:
+    weather <city>           Current weather
+    forecast <city>          3-day forecast
+    weather tomorrow         Tomorrow (last queried city)
+
+  Tasks Agent:
+    add task: <title> [priority: high/medium/low] [due: <date>]
+    add task <title>         Quick add
+    list tasks               Incomplete tasks
+    all tasks                All tasks
+    complete task <id>       Mark done
+    delete task <id>         Remove task
+    due today                Tasks due today
+    due this week            Tasks due this week
+
+  System:
+    agents                   List registered agents
+    marketplace / available  Browse marketplace
+    install <name>           Install agent from marketplace
+    help                     This message
+    quit / exit              Exit
                 """.trimIndent())
             }
             else -> {
-                val response = routeMessage(line, notesAgent, calendarAgent)
+                val response = routeMessage(line, notesAgent, calendarAgent, weatherAgent, tasksAgent)
                 println(response)
             }
         }
@@ -83,36 +157,47 @@ AgentOS CLI — Routing:
 private fun routeMessage(
     input: String,
     notesAgent: NotesAgent,
-    calendarAgent: CalendarAgent
+    calendarAgent: CalendarAgent,
+    weatherAgent: WeatherAgent,
+    tasksAgent: TasksAgent
 ): String = runBlocking {
     val lower = input.lowercase()
 
-    // Explicit routing
-    if (lower.startsWith("notes:") || lower.startsWith("note ")) {
-        val cmd = if (lower.startsWith("notes:")) input.removePrefix("notes:").trim()
-                  else input.removePrefix("note ").trim()
+    // Weather routing
+    if (lower.startsWith("weather ") || lower.startsWith("forecast ")) {
+        return@runBlocking weatherAgent.onChat(ChatMessage("user", input)).text
+    }
+
+    // Tasks routing
+    if (lower.startsWith("add task") || lower == "list tasks" || lower == "all tasks" ||
+        lower.startsWith("complete task ") || lower.startsWith("delete task ") ||
+        lower == "due today" || lower == "tasks due today" ||
+        lower == "due this week" || lower == "tasks due this week") {
+        return@runBlocking tasksAgent.onChat(ChatMessage("user", input)).text
+    }
+
+    // Notes routing
+    if (lower.startsWith("notes:") || lower.startsWith("note ") ||
+        lower.startsWith("create note") || lower == "list notes" ||
+        lower.startsWith("search notes") || lower.startsWith("get note") ||
+        lower.startsWith("delete note")) {
+        val cmd = when {
+            lower.startsWith("notes:") -> input.removePrefix("notes:").trim()
+            lower.startsWith("note ") -> input.removePrefix("note ").trim()
+            else -> input
+        }
         return@runBlocking notesAgent.onChat(ChatMessage("user", cmd)).text
     }
 
+    // Calendar routing
     if (lower.startsWith("calendar:")) {
         val cmd = input.removePrefix("calendar:").trim()
         return@runBlocking calendarAgent.onChat(ChatMessage("user", cmd)).text
     }
 
-    if (lower.startsWith("schedule ") || lower.startsWith("what's on ")) {
+    if (lower.startsWith("schedule ") || lower.startsWith("what's on")) {
         return@runBlocking calendarAgent.onChat(ChatMessage("user", input)).text
     }
 
-    // Fallback: try notes first, then calendar
-    val notesResponse = notesAgent.onChat(ChatMessage("user", input)).text
-    if (!notesResponse.contains("I don't understand")) {
-        return@runBlocking notesResponse
-    }
-
-    val calendarResponse = calendarAgent.onChat(ChatMessage("user", input)).text
-    if (!calendarResponse.contains("I don't understand")) {
-        return@runBlocking calendarResponse
-    }
-
-    notesResponse
+    "Unknown command. Type 'help' for available commands."
 }
