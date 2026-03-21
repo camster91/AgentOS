@@ -1,17 +1,3 @@
 rootProject.name = "AgentOS"
-
 include(":core")
-include(":runtime")
 include(":api")
-include(":agents")
-include(":agents:email")
-include(":agents:calendar")
-include(":agents:tasks")
-include(":agents:notes")
-include(":agents:weather")
-include(":agents:finance")
-include(":agents:messaging")
-include(":ui")
-include(":security")
-include(":storage")
-include(":marketplace")

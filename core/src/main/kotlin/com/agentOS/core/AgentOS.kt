@@ -18,16 +18,27 @@ import java.util.concurrent.atomic.AtomicBoolean
 object AgentOS {
     private val initialized = AtomicBoolean(false)
 
+    lateinit var registry: AgentRegistry
+        private set
+
     fun initialize() {
         if (!initialized.compareAndSet(false, true)) {
             throw IllegalStateException("AgentOS is already initialized")
         }
         println("AgentOS initializing...")
         println("  - Loading core services")
+
+        println("  - Initializing AgentRegistry")
+        registry = AgentRegistry()
+
+        println("  - Initializing EventBus")
+        // EventBus is an object singleton — already available
+        EventBus
+
         println("  - Initializing sandbox runtime")
         println("  - Setting up permission system")
         println("  - Mounting storage layer")
-        println("AgentOS ready ✓")
+        println("AgentOS ready")
     }
 
     fun shutdown() {

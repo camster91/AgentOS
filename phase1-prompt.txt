@@ -1,0 +1,93 @@
+Implement Phase 1 core infrastructure for AgentOS. The project is at the current directory.
+
+Current structure:
+- :api module has AgentAPI.kt (StorageAPI, UIAPI, CalendarAPI, etc. interfaces), Agent.kt (base class), AgentScope.kt
+- :core module has AgentOS.kt (singleton)
+
+Implement the following in the :core module:
+
+1. InMemoryStorage (core/src/main/kotlin/com/agentOS/core/storage/InMemoryStorage.kt):
+   - Implements StorageAPI interface from :api
+   - Constructor takes AgentScope for storage limit enforcement
+   - Uses ConcurrentHashMap<String, ByteArray> internally
+   - writeString/readString convert to/from UTF-8 bytes
+   - writeBytes/readBytes store/retrieve raw bytes
+   - getSize() returns total bytes stored
+   - Throws StorageQuotaExceededException (define this exception) when write would exceed AgentScope.storageQuotaBytes
+   - delete removes a key, clear removes all, listKeys returns all keys
+
+2. FileStorage (core/src/main/kotlin/com/agentOS/core/storage/FileStorage.kt):
+   - Implements StorageAPI interface
+   - Constructor takes AgentScope and a root directory (java.io.File)
+   - Stores each key as a file in the root directory
+   - Enforces storageQuotaBytes (check total directory size before write)
+   - Throws StorageQuotaExceededException when quota exceeded
+   - Keys are sanitized (replace / and .. to prevent path traversal)
+
+3. PermissionManager (core/src/main/kotlin/com/agentOS/core/PermissionManager.kt):
+   - Constructor takes AgentScope
+   - fun requireCapability(capability: String) - throws PermissionDeniedException if scope doesn't have the capability
+   - fun hasCapability(capability: String): Boolean
+   - Define PermissionDeniedException class
+   - Capabilities checked: "storage", "ui", "notifications", "calendar", "contacts", "messaging", "health", "cloud_sync"
+
+4. AgentRegistry (core/src/main/kotlin/com/agentOS/core/AgentRegistry.kt):
+   - Manages loaded agents: Map<String, Agent> (keyed by AgentScope.id)
+   - fun register(agent: Agent): Boolean - adds agent, returns false if already registered
+   - fun unregister(agentId: String): Boolean - removes agent, calls agent.onUninstall() if coroutine scope available
+   - fun getAgent(agentId: String): Agent?
+   - fun listAgents(): List<AgentMetadata>
+   - fun getCount(): Int
+
+5. EventBus (core/src/main/kotlin/com/agentOS/core/EventBus.kt):
+   - Coroutine-based pub/sub using kotlinx.coroutines SharedFlow
+   - data class AgentEvent(val type: String, val agentId: String, val payload: Map<String, Any> = emptyMap())
+   - object EventBus (singleton):
+     - private val _events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 64)
+     - val events: SharedFlow<AgentEvent> = _events.asSharedFlow()
+     - suspend fun publish(event: AgentEvent)
+     - fun subscribe(scope: CoroutineScope, handler: suspend (AgentEvent) -> Unit): Job
+
+6. Update AgentOS.initialize() to:
+   - Initialize AgentRegistry
+   - Initialize EventBus
+   - Log initialization steps
+
+7. Write comprehensive tests (aim for 80%+ coverage):
+   - core/src/test/kotlin/com/agentOS/core/storage/InMemoryStorageTest.kt
+     - Test write and read string
+     - Test write and read bytes
+     - Test delete
+     - Test clear
+     - Test listKeys
+     - Test quota exceeded throws StorageQuotaExceededException
+     - Test getSize returns correct size
+   - core/src/test/kotlin/com/agentOS/core/storage/FileStorageTest.kt
+     - Test write and read string (use temp directory)
+     - Test quota enforcement
+     - Test key sanitization (keys with / should not escape directory)
+   - core/src/test/kotlin/com/agentOS/core/PermissionManagerTest.kt
+     - Test hasCapability returns true for capability in scope
+     - Test requireCapability throws PermissionDeniedException when not in scope
+     - Test requireCapability succeeds when capability present
+   - core/src/test/kotlin/com/agentOS/core/AgentRegistryTest.kt
+     - Test register and getAgent
+     - Test duplicate register returns false
+     - Test unregister
+     - Test listAgents
+   - core/src/test/kotlin/com/agentOS/core/EventBusTest.kt
+     - Test publish and receive event
+     - Test multiple subscribers
+
+8. After implementing, run: ./gradlew test
+   Fix any compilation errors or test failures before finishing.
+   The build must pass with zero test failures.
+
+9. git add -A && git commit -m "Phase 1: Core infrastructure complete"
+
+Notes:
+- All Kotlin code in package com.agentOS.core or sub-packages
+- Use kotlinx.coroutines (already in dependencies)
+- Use runBlocking in tests for suspend functions
+- Do not use Android APIs — pure JVM
+- Do not modify AgentAPI.kt, Agent.kt, AgentScope.kt

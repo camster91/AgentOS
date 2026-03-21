@@ -92,7 +92,7 @@ data class AgentMetadata(
     val version: String,
     val author: String,
     val description: String,
-    val icon: ByteArray? = null,
+    val icon: String? = null,
     val capabilities: Set<String>,
     val optionalCapabilities: Set<String>,
     val rating: Float = 0.0f,

@@ -1,0 +1,64 @@
+Fix this AgentOS Kotlin project so it compiles cleanly. Here is what needs to be done:
+
+1. Create the Gradle wrapper files manually (gradle is not installed on this system):
+   - Create gradle/wrapper/gradle-wrapper.properties with content:
+     distributionBase=GRADLE_USER_HOME
+     distributionPath=wrapper/dists
+     distributionUrl=https\://services.gradle.org/distributions/gradle-8.5-bin.zip
+     zipStoreBase=GRADLE_USER_HOME
+     zipStorePath=wrapper/dists
+   - Create gradlew (Unix shell script that bootstraps the wrapper)
+   - Create gradlew.bat (Windows batch file)
+   Use the standard Gradle wrapper script content from Gradle 8.5
+
+2. Fix settings.gradle.kts to ONLY contain:
+   rootProject.name = "AgentOS"
+   include(":core")
+   include(":api")
+
+3. Fix root build.gradle.kts to remove multiplatform and android plugins:
+   plugins {
+       kotlin("jvm") version "1.9.23" apply false
+   }
+   allprojects {
+       repositories {
+           mavenCentral()
+       }
+   }
+
+4. Create api/build.gradle.kts:
+   plugins {
+       kotlin("jvm")
+   }
+   dependencies {
+       implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+   }
+
+5. Create core/build.gradle.kts:
+   plugins {
+       kotlin("jvm")
+   }
+   dependencies {
+       implementation(project(":api"))
+       implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+       implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
+       implementation("ch.qos.logback:logback-classic:1.4.11")
+       testImplementation(kotlin("test"))
+       testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
+   }
+   tasks.test {
+       useJUnitPlatform()
+   }
+
+6. Create core/src/test/kotlin/com/agentOS/core/AgentScopeTest.kt with 2 tests:
+   - Test that AgentScope throws IllegalArgumentException when id is blank
+   - Test that AgentScope throws IllegalArgumentException when cpuLimitPercent is > 100
+   Use kotlin.test (import kotlin.test.Test, assertFailsWith)
+
+7. Do NOT modify: api/src/main/kotlin/com/agentOS/api/AgentAPI.kt, Agent.kt, AgentScope.kt, or core/src/main/kotlin/com/agentOS/core/AgentOS.kt
+
+8. After creating all files, run: ./gradlew build
+   If it fails, read the errors and fix them, then run again.
+   Keep trying until it passes.
+
+This is a JVM-only Kotlin project. No Android, no multiplatform.
