@@ -1,5 +1,10 @@
 plugins {
     kotlin("jvm")
+    id("application")
+}
+
+application {
+    mainClass.set("com.agentOS.core.MainKt")
 }
 
 dependencies {
