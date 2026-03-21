@@ -1,6 +1,6 @@
 plugins {
-    id("com.android.application") version "8.5.0"
-    kotlin("android") version "1.9.23"
+    id("com.android.application")
+    kotlin("android")
 }
 
 repositories {
@@ -49,4 +49,6 @@ dependencies {
 
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.2")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 }
