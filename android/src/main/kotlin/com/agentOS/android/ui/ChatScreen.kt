@@ -16,9 +16,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -42,7 +48,10 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun ChatScreen(viewModel: ChatViewModel = viewModel()) {
+fun ChatScreen(
+    viewModel: ChatViewModel = viewModel(),
+    onNavigateToSettings: () -> Unit = {},
+) {
     val messages by viewModel.messages.collectAsState()
     val selectedAgent by viewModel.selectedAgent.collectAsState()
     val isTyping by viewModel.isTyping.collectAsState()
@@ -61,35 +70,68 @@ fun ChatScreen(viewModel: ChatViewModel = viewModel()) {
             .background(MaterialTheme.colorScheme.background)
             .imePadding(),
     ) {
+        @OptIn(ExperimentalMaterial3Api::class)
+        TopAppBar(
+            title = { Text("AgentOS") },
+            actions = {
+                IconButton(onClick = onNavigateToSettings) {
+                    Icon(
+                        imageVector = Icons.Default.Settings,
+                        contentDescription = "Settings",
+                        tint = Color.White,
+                    )
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.background,
+                titleContentColor = Color.White,
+            ),
+        )
+
         AgentSelectorBar(
             agents = viewModel.agentList,
             selectedAgent = selectedAgent,
             onAgentSelected = { viewModel.selectAgent(it) },
         )
 
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            item { Spacer(modifier = Modifier.height(4.dp)) }
-            items(messages, key = { it.id }) { message ->
-                MessageBubble(message)
+        if (messages.isEmpty() && !isTyping) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Ask your agents anything.",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 16.sp,
+                )
             }
-            if (isTyping) {
-                item {
-                    Text(
-                        text = "${selectedAgent} Agent is typing…",
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(start = 8.dp, top = 4.dp),
-                    )
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                item { Spacer(modifier = Modifier.height(4.dp)) }
+                items(messages, key = { it.id }) { message ->
+                    MessageBubble(message)
                 }
+                if (isTyping) {
+                    item {
+                        Text(
+                            text = "${selectedAgent} Agent is typing…",
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(start = 8.dp, top = 4.dp),
+                        )
+                    }
+                }
+                item { Spacer(modifier = Modifier.height(4.dp)) }
             }
-            item { Spacer(modifier = Modifier.height(4.dp)) }
         }
 
         MessageInputBar(
