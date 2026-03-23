@@ -23,7 +23,7 @@ jobs:
       uses: gradle/actions/setup-gradle@v3
 
     - name: Build with Gradle
-      run: gradle build --no-daemon || ./gradlew build --no-daemon
+      run: gradle build -x test --no-daemon || ./gradlew build -x test --no-daemon
 
     - name: Run Unit Tests
       run: gradle test --no-daemon || ./gradlew test --no-daemon
