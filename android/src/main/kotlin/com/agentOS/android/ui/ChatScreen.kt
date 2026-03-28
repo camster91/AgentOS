@@ -16,11 +16,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material.icons.Icons
@@ -55,8 +57,28 @@ fun ChatScreen(
     val messages by viewModel.messages.collectAsState()
     val selectedAgent by viewModel.selectedAgent.collectAsState()
     val isTyping by viewModel.isTyping.collectAsState()
+    val showMarketplace by viewModel.showMarketplace.collectAsState()
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+
+    if (showMarketplace) {
+        AlertDialog(
+            onDismissRequest = { viewModel.closeMarketplace() },
+            title = { Text("Agent Marketplace") },
+            text = {
+                Text(
+                    "The marketplace is coming soon!\n\n" +
+                    "You'll be able to install community-built agents — Finance, Fitness, Travel, and more — directly from here.\n\n" +
+                    "Stay tuned for v0.4.0."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.closeMarketplace() }) {
+                    Text("Got it")
+                }
+            },
+        )
+    }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -92,6 +114,7 @@ fun ChatScreen(
             agents = viewModel.agentList,
             selectedAgent = selectedAgent,
             onAgentSelected = { viewModel.selectAgent(it) },
+            onAddAgent = { viewModel.openMarketplace() },
         )
 
         if (messages.isEmpty() && !isTyping) {

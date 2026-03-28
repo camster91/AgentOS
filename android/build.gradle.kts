@@ -60,6 +60,9 @@ android {
 }
 
 dependencies {
+    implementation(project(":core"))
+    implementation(project(":agents:ai-core"))
+
     val composeVersion = "1.7.0"
 
     implementation("androidx.compose.ui:ui:$composeVersion")
