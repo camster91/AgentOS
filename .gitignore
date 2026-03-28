@@ -27,13 +27,21 @@ Thumbs.db
 # Android
 .android/
 local.properties
+key.properties
 *.apk
 *.ap_
+*.aab
 *.dex
 *.class
 bin/
 gen/
 out/
+
+# Keystores & certificates (never commit signing credentials)
+*.jks
+*.keystore
+*.p12
+*.pem
 
 # Kotlin
 *.kexe

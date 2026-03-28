@@ -57,7 +57,9 @@ class CalendarAgent(private val storage: StorageAPI, private val gemini: GeminiC
         if (onIndex < 0) return "Format: schedule <title> on <date> at <time>"
 
         val title = input.substring(0, onIndex).trim()
+        if (title.isBlank()) return "Event title cannot be empty. Format: schedule <title> on <date> at <time>"
         val dateTimePart = input.substring(onIndex + 4).trim()
+        if (dateTimePart.isBlank()) return "Please specify a date. Format: schedule <title> on <date> at <time>"
 
         val atIndex = dateTimePart.lastIndexOf(" at ", ignoreCase = true)
         val datePart: String

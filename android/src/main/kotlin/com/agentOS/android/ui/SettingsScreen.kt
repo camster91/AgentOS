@@ -150,9 +150,9 @@ fun SettingsScreen(onBack: () -> Unit) {
                     keyboard?.hide()
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = apiKeyInput.isNotBlank() && apiKeyInput != app.apiKey || !saved,
+                enabled = apiKeyInput.isNotBlank() && (apiKeyInput != app.apiKey || !saved),
             ) {
-                Text(if (saved) "Saved ✓" else "Save API Key")
+                Text(if (saved && apiKeyInput == app.apiKey) "Saved ✓" else "Save API Key")
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 20.dp), color = Color.White.copy(alpha = 0.1f))

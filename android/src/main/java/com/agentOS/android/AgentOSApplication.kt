@@ -41,8 +41,7 @@ class AgentOSApplication : Application() {
     }
 
     fun reinitAgents() {
-        val key = apiKey.ifBlank { DEFAULT_API_KEY }
-        val gemini = GeminiClient(apiKey = key)
+        val gemini = GeminiClient(apiKey = apiKey)
         val storageRoot = File(filesDir, "agent_data")
 
         fun scope(id: String, name: String, desc: String, caps: Set<String> = setOf("storage", "ui")) =
@@ -110,7 +109,6 @@ class AgentOSApplication : Application() {
     }
 
     companion object {
-        private const val DEFAULT_API_KEY = "AIzaSyAPNvfGU6hlUAop3vE9BbJbukXKpvY6SB4"
         private const val MAX_HISTORY = 100
     }
 }

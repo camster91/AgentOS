@@ -2,9 +2,16 @@ name: Build & Test
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, 'claude/**', 'feature/**', 'fix/**' ]
   pull_request:
     branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: 'Run tests'
+        required: false
+        default: 'true'
+        type: boolean
 
 jobs:
   build:
@@ -22,11 +29,21 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
 
-    - name: Build with Gradle
-      run: gradle build -x test --no-daemon || ./gradlew build -x test --no-daemon
+    - name: Build JVM modules
+      run: gradle :core:build :sync:build :agents:ai-core:build -x test --no-daemon
 
     - name: Run Unit Tests
-      run: gradle :core:test :sync:test --no-daemon || ./gradlew :core:test :sync:test --no-daemon
+      run: gradle :core:test :sync:test --no-daemon
+
+    - name: Upload test reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-reports
+        path: |
+          **/build/reports/tests/
+          **/build/test-results/
+        if-no-files-found: ignore
 
     - name: Upload build artifacts
       if: always()
@@ -35,12 +52,32 @@ jobs:
         name: build-artifacts
         path: |
           **/build/outputs/
-          **/build/reports/
+          **/build/libs/
         if-no-files-found: ignore
 
   security:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Run security checks
-      run: grep -r "api_key\|password\|secret" --include="*.kt" --include="*.java" . || echo "No hardcoded secrets found"
+
+    - name: Scan for hardcoded secrets
+      run: |
+        # Fail if any hardcoded API keys or passwords found (excluding comments and tests)
+        if grep -r --include="*.kt" --include="*.java" --include="*.gradle.kts" \
+          -E '(api_key|apiKey|password|secret)\s*=\s*"[A-Za-z0-9+/]{20,}"' \
+          --exclude-dir=".git" \
+          --exclude-dir="build" . ; then
+          echo "ERROR: Potential hardcoded secret found!"
+          exit 1
+        else
+          echo "No hardcoded secrets detected."
+        fi
+
+    - name: Check .gitignore covers sensitive files
+      run: |
+        for pattern in "*.jks" "*.keystore" "local.properties" "key.properties"; do
+          if ! grep -q "$pattern" .gitignore; then
+            echo "WARNING: $pattern not in .gitignore"
+          fi
+        done
+        echo "Gitignore check complete."

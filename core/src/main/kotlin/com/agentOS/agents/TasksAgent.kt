@@ -85,6 +85,8 @@ class TasksAgent(private val storage: StorageAPI, private val gemini: GeminiClie
             val parsedDate = parseDate(dateStr)
             if (parsedDate != null) {
                 dueDate = parsedDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            } else {
+                return "Could not parse date \"$dateStr\". Try: today, tomorrow, next Monday, Jan 15, 2026-03-25"
             }
             title = title.removeRange(dueMatch.range).trim()
         }

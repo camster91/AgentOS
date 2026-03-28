@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -118,18 +119,10 @@ fun ChatScreen(
         )
 
         if (messages.isEmpty() && !isTyping) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "Ask your agents anything.",
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 16.sp,
-                )
-            }
+            AgentEmptyState(
+                agentName = selectedAgent,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            )
         } else {
             LazyColumn(
                 state = listState,
@@ -165,6 +158,90 @@ fun ChatScreen(
                 inputText = ""
             },
         )
+    }
+}
+
+private val agentHints = mapOf(
+    "Notes" to listOf(
+        "create note: Meeting | Discussed Q1 roadmap",
+        "list notes",
+        "search notes quarterly",
+        "get note <id or title>",
+    ),
+    "Calendar" to listOf(
+        "schedule Dentist on Friday at 2pm",
+        "list events",
+        "list events tomorrow",
+        "cancel event <id or title>",
+    ),
+    "Tasks" to listOf(
+        "add task: Review PR priority: high due: tomorrow",
+        "list tasks",
+        "due today",
+        "complete task <id or title>",
+    ),
+    "Weather" to listOf(
+        "weather New York",
+        "forecast London",
+        "weather tomorrow",
+    ),
+    "Email" to listOf(
+        "compose email: alice@example.com | Hello | Hi there!",
+        "list inbox",
+        "unread",
+        "reply to <id> | Sure, see you then!",
+    ),
+    "Messaging" to listOf(
+        "send message: Alice | Hey, free for lunch?",
+        "list conversations",
+        "read conversation Alice",
+        "search messages lunch",
+    ),
+    "Finance" to listOf(
+        "add expense: Coffee | 4.50 | Food",
+        "add income: Freelance | 500 | Income",
+        "budget summary",
+        "spending by category",
+    ),
+)
+
+@Composable
+private fun AgentEmptyState(agentName: String, modifier: Modifier = Modifier) {
+    val hints = agentHints[agentName] ?: listOf("Ask me anything about $agentName")
+    Column(
+        modifier = modifier.padding(horizontal = 28.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = "$agentName Agent",
+            color = MaterialTheme.colorScheme.primary,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "Try a command or just chat naturally:",
+            color = Color.White.copy(alpha = 0.45f),
+            fontSize = 13.sp,
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        hints.forEach { hint ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.White.copy(alpha = 0.06f))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                Text(
+                    text = hint,
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 13.sp,
+                )
+            }
+        }
     }
 }
 

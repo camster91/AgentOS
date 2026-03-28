@@ -80,11 +80,12 @@ class FinanceAgent(private val storage: StorageAPI, private val gemini: GeminiCl
 
         val rawAmount = amountStr.replace("$", "").replace(",", "").toDoubleOrNull()
             ?: return "Invalid amount: \"$amountStr\". Use a number like 25.99 or -25.99."
+        if (rawAmount.isNaN() || rawAmount.isInfinite()) return "Invalid amount: \"$amountStr\"."
 
         // Positive = income, negative = expense. forceIncome overrides sign
         val amount = when {
             forceIncome -> abs(rawAmount)
-            rawAmount > 0 && !input.contains("-") -> -rawAmount  // default to expense if positive
+            rawAmount > 0 -> -rawAmount  // default unsigned positive values to expense
             else -> rawAmount
         }
 
