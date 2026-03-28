@@ -1,6 +1,9 @@
 package com.agentOS.core
 
 import com.agentOS.agents.CalendarAgent
+import com.agentOS.agents.EmailAgent
+import com.agentOS.agents.FinanceAgent
+import com.agentOS.agents.MessagingAgent
 import com.agentOS.agents.NotesAgent
 import com.agentOS.agents.TasksAgent
 import com.agentOS.agents.WeatherAgent
@@ -49,6 +52,30 @@ fun main() {
         description = "Task management with priorities, due dates, and filtering.",
         capabilities = setOf("storage", "ui")
     )
+    val emailScope = AgentScope(
+        id = "com.agentOS.email",
+        name = "Email Agent",
+        version = "0.1.0",
+        author = "Cameron",
+        description = "Conversational email triage, compose, and organize.",
+        capabilities = setOf("storage", "ui", "network")
+    )
+    val messagingScope = AgentScope(
+        id = "com.agentOS.messaging",
+        name = "Messaging Agent",
+        version = "0.1.0",
+        author = "Cameron",
+        description = "Universal inbox for SMS, messaging, and conversations.",
+        capabilities = setOf("storage", "ui", "contacts")
+    )
+    val financeScope = AgentScope(
+        id = "com.agentOS.finance",
+        name = "Finance Agent",
+        version = "0.1.0",
+        author = "Cameron",
+        description = "Conversational budgeting, spending tracking, and financial summaries.",
+        capabilities = setOf("storage", "ui")
+    )
 
     val gemini = GeminiClient(
         apiKey = System.getenv("GEMINI_API_KEY") ?: "AIzaSyAPNvfGU6hlUAop3vE9BbJbukXKpvY6SB4"
@@ -58,11 +85,17 @@ fun main() {
     val calendarAgent = CalendarAgent(InMemoryStorage(calendarScope), gemini)
     val weatherAgent = WeatherAgent(InMemoryStorage(weatherScope), gemini)
     val tasksAgent = TasksAgent(InMemoryStorage(tasksScope), gemini)
+    val emailAgent = EmailAgent(InMemoryStorage(emailScope), gemini)
+    val messagingAgent = MessagingAgent(InMemoryStorage(messagingScope), gemini)
+    val financeAgent = FinanceAgent(InMemoryStorage(financeScope), gemini)
 
     AgentOS.registry.register(notesAgent)
     AgentOS.registry.register(calendarAgent)
     AgentOS.registry.register(weatherAgent)
     AgentOS.registry.register(tasksAgent)
+    AgentOS.registry.register(emailAgent)
+    AgentOS.registry.register(messagingAgent)
+    AgentOS.registry.register(financeAgent)
 
     val marketplaceDir = File(System.getProperty("user.home"), ".agentos/marketplace")
     val sandboxRoot = File(System.getProperty("user.home"), ".agentos/sandbox")
@@ -70,7 +103,7 @@ fun main() {
 
     println()
     println("╔══════════════════════════════════════╗")
-    println("║          AgentOS v0.1.0-alpha        ║")
+    println("║          AgentOS v0.3.0-alpha        ║")
     println("║   Your conversational agent OS       ║")
     println("╚══════════════════════════════════════╝")
     println()
@@ -117,39 +150,68 @@ fun main() {
 AgentOS CLI — Commands:
 
   Notes Agent:
-    notes: <command>         create note, list notes, get note, search notes, delete note
-    create note <title>      Quick create
+    notes: <command>                    create note, list notes, get note, search notes, delete note
+    create note <title>                 Quick create
 
   Calendar Agent:
-    calendar: <command>      schedule, list events, cancel event
-    schedule <event>         Quick schedule
-    what's on <date>         Check calendar
+    calendar: <command>                 schedule, list events, cancel event
+    schedule <event>                    Quick schedule
+    what's on <date>                    Check calendar
 
   Weather Agent:
-    weather <city>           Current weather
-    forecast <city>          3-day forecast
-    weather tomorrow         Tomorrow (last queried city)
+    weather <city>                      Current weather
+    forecast <city>                     3-day forecast
+    weather tomorrow                    Tomorrow (last queried city)
 
   Tasks Agent:
     add task: <title> [priority: high/medium/low] [due: <date>]
-    add task <title>         Quick add
-    list tasks               Incomplete tasks
-    all tasks                All tasks
-    complete task <id>       Mark done
-    delete task <id>         Remove task
-    due today                Tasks due today
-    due this week            Tasks due this week
+    add task <title>                    Quick add
+    list tasks                          Incomplete tasks
+    all tasks                           All tasks
+    complete task <id>                  Mark done
+    delete task <id>                    Remove task
+    due today                           Tasks due today
+    due this week                       Tasks due this week
+
+  Email Agent:
+    compose email: <to> | <subject> | <body>
+    list inbox                          Show inbox
+    list sent                           Show sent mail
+    read email <id>                     Read an email
+    search emails <query>               Search emails
+    reply to <id> | <body>              Reply to email
+    delete email <id>                   Delete email
+    unread                              Show unread emails
+
+  Messaging Agent:
+    send message: <contact> | <body>    Send a message
+    list conversations                  Show all conversations
+    read conversation <contact>         Read messages with contact
+    search messages <query>             Search messages
+    list contacts                       Show all contacts
+    delete message <id>                 Delete a message
+
+  Finance Agent:
+    add transaction: <desc> | <amount> | [category]
+    add expense: <desc> | <amount> | [category]
+    add income: <desc> | <amount> | [category]
+    list transactions                   All transactions
+    budget summary                      Income, expenses, and budgets
+    set budget: <category> | <amount>   Set category budget
+    spending this month                 Current month expenses
+    income this month                   Current month income
+    spending by category                Breakdown by category
 
   System:
-    agents                   List registered agents
-    marketplace / available  Browse marketplace
-    install <name>           Install agent from marketplace
-    help                     This message
-    quit / exit              Exit
+    agents                              List registered agents
+    marketplace / available             Browse marketplace
+    install <name>                      Install agent from marketplace
+    help                                This message
+    quit / exit                         Exit
                 """.trimIndent())
             }
             else -> {
-                val response = routeMessage(line, notesAgent, calendarAgent, weatherAgent, tasksAgent)
+                val response = routeMessage(line, notesAgent, calendarAgent, weatherAgent, tasksAgent, emailAgent, messagingAgent, financeAgent)
                 println(response)
             }
         }
@@ -164,7 +226,10 @@ private fun routeMessage(
     notesAgent: NotesAgent,
     calendarAgent: CalendarAgent,
     weatherAgent: WeatherAgent,
-    tasksAgent: TasksAgent
+    tasksAgent: TasksAgent,
+    emailAgent: EmailAgent,
+    messagingAgent: MessagingAgent,
+    financeAgent: FinanceAgent
 ): String = runBlocking {
     val lower = input.lowercase()
 
@@ -202,6 +267,35 @@ private fun routeMessage(
 
     if (lower.startsWith("schedule ") || lower.startsWith("what's on")) {
         return@runBlocking calendarAgent.onChat(ChatMessage("user", input)).text
+    }
+
+    // Email routing
+    if (lower.startsWith("compose") || lower.startsWith("email:") ||
+        lower == "list inbox" || lower == "inbox" || lower == "list sent" || lower == "sent" ||
+        lower.startsWith("read email ") || lower.startsWith("search email") ||
+        lower.startsWith("delete email ") || lower.startsWith("mark read ") ||
+        lower.startsWith("reply to ") || lower == "unread" || lower == "unread emails") {
+        return@runBlocking emailAgent.onChat(ChatMessage("user", input)).text
+    }
+
+    // Messaging routing
+    if (lower.startsWith("send:") || lower.startsWith("send message:") ||
+        lower == "list conversations" || lower == "conversations" ||
+        lower.startsWith("read conversation ") || lower.startsWith("messages with ") ||
+        lower.startsWith("delete message ") || lower.startsWith("search messages ") ||
+        lower == "list contacts" || lower == "contacts") {
+        return@runBlocking messagingAgent.onChat(ChatMessage("user", input)).text
+    }
+
+    // Finance routing
+    if (lower.startsWith("add transaction") || lower.startsWith("add expense:") ||
+        lower.startsWith("add income:") || lower == "list transactions" ||
+        lower == "transactions" || lower == "budget summary" || lower == "summary" ||
+        lower == "balance" || lower.startsWith("set budget") ||
+        lower == "spending this month" || lower == "this month" ||
+        lower == "income this month" || lower.startsWith("delete transaction ") ||
+        lower.startsWith("spending by category") || lower == "by category") {
+        return@runBlocking financeAgent.onChat(ChatMessage("user", input)).text
     }
 
     "Unknown command. Type 'help' for available commands."

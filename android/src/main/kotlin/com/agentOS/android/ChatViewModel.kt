@@ -10,7 +10,7 @@ import kotlinx.coroutines.launch
 
 class ChatViewModel : ViewModel() {
 
-    val agentList: List<String> = listOf("Notes", "Calendar", "Tasks", "Weather")
+    val agentList: List<String> = listOf("Notes", "Calendar", "Tasks", "Weather", "Email", "Messaging", "Finance")
 
     private val _selectedAgent = MutableStateFlow("Notes")
     val selectedAgent: StateFlow<String> = _selectedAgent.asStateFlow()
