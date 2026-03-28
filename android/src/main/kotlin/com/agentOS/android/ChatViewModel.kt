@@ -15,10 +15,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     val agentList: List<String> = listOf("Notes", "Calendar", "Tasks", "Weather", "Email", "Messaging", "Finance")
 
-    private val _selectedAgent = MutableStateFlow("Notes")
+    private val _selectedAgent = MutableStateFlow(agentList.first())
     val selectedAgent: StateFlow<String> = _selectedAgent.asStateFlow()
 
-    // Per-agent message history
+    // Per-agent in-memory history (backed by file storage)
     private val agentHistories = mutableMapOf<String, MutableList<ChatMessage>>()
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
@@ -30,10 +30,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _showMarketplace = MutableStateFlow(false)
     val showMarketplace: StateFlow<Boolean> = _showMarketplace.asStateFlow()
 
-    fun openMarketplace() { _showMarketplace.value = true }
-    fun closeMarketplace() { _showMarketplace.value = false }
+    init {
+        // Pre-load history for the first agent
+        loadHistoryFor(agentList.first())
+        _messages.value = agentHistories.getOrPut(agentList.first()) { mutableListOf() }.toList()
+    }
 
     fun selectAgent(agent: String) {
+        if (!agentHistories.containsKey(agent)) loadHistoryFor(agent)
         _selectedAgent.value = agent
         _messages.value = agentHistories.getOrPut(agent) { mutableListOf() }.toList()
     }
@@ -51,12 +55,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             val responseText = try {
-                val agent = app.agents[agentName]
-                if (agent != null) {
-                    agent.onChat(AgentChatMessage("user", text)).text
-                } else {
-                    "Agent \"$agentName\" is not available."
-                }
+                app.agents[agentName]?.onChat(AgentChatMessage("user", text))?.text
+                    ?: "Agent \"$agentName\" is not available."
             } catch (e: Exception) {
                 "Error: ${e.message ?: "Something went wrong."}"
             }
@@ -65,6 +65,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             history.add(response)
             _messages.value = history.toList()
             _isTyping.value = false
+
+            // Persist after every exchange
+            app.saveChatHistory(agentName, history)
         }
+    }
+
+    fun openMarketplace() { _showMarketplace.value = true }
+    fun closeMarketplace() { _showMarketplace.value = false }
+
+    private fun loadHistoryFor(agentName: String) {
+        val loaded = app.loadChatHistory(agentName).toMutableList()
+        agentHistories[agentName] = loaded
     }
 }

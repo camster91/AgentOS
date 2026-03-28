@@ -77,9 +77,14 @@ fun main() {
         capabilities = setOf("storage", "ui")
     )
 
-    val gemini = GeminiClient(
-        apiKey = System.getenv("GEMINI_API_KEY") ?: "AIzaSyAPNvfGU6hlUAop3vE9BbJbukXKpvY6SB4"
-    )
+    val apiKey = System.getenv("GEMINI_API_KEY")
+        ?: System.getProperty("gemini.api.key")
+        ?: run {
+            System.err.println("⚠  GEMINI_API_KEY is not set. AI responses will be unavailable.")
+            System.err.println("   Set it with: export GEMINI_API_KEY=your_key_here")
+            ""
+        }
+    val gemini = GeminiClient(apiKey = apiKey)
 
     val notesAgent = NotesAgent(InMemoryStorage(notesScope), gemini)
     val calendarAgent = CalendarAgent(InMemoryStorage(calendarScope), gemini)
