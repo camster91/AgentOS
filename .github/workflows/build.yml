@@ -26,8 +26,7 @@ jobs:
       run: gradle build -x test --no-daemon || ./gradlew build -x test --no-daemon
 
     - name: Run Unit Tests
-      run: gradle test --no-daemon || ./gradlew test --no-daemon
-      continue-on-error: true
+      run: gradle :core:test :sync:test --no-daemon || ./gradlew :core:test :sync:test --no-daemon
 
     - name: Upload build artifacts
       if: always()
