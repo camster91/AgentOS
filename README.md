@@ -1,93 +1,177 @@
 # AgentOS
 
-**AgentOS** is an open-source AI assistant operating system for Android and JVM. It provides a modular, agent-based architecture where specialized AI agents handle different domains — notes, calendar, tasks, and weather — each powered by Google Gemini AI.
+**AgentOS** is an open-source AI agent operating system for Android and JVM. Instead of a single monolithic assistant, it runs a fleet of specialized AI agents — each owning its own domain, storage, and conversation context — all powered by Google Gemini 2.0 Flash.
 
-Unlike monolithic AI apps, AgentOS routes user requests to the right agent automatically, maintains per-agent conversation history, and syncs data across devices via a lightweight cloud sync backend. The Android app features a clean Jetpack Compose chat UI that feels like one unified assistant while running a fleet of specialized agents under the hood.
+> **v0.3.0** · 7 built-in agents · Jetpack Compose · JVM CLI · Cloud sync
 
-## Architecture
+---
+
+## What it does
+
+A single chat UI routes your messages to the right agent automatically. Each agent understands its domain deeply, persists your data locally, and falls back to natural conversation via Gemini when a built-in command isn't recognized.
 
 ```
-Android App (Jetpack Compose)
-        │
-        ▼
-  AgentOS Core (JVM)
-        │
-   ┌────┴────────────────────────┐
-   │    Agent Router             │
-   └─┬──────┬──────┬────────────┘
-     │      │      │      │
-  Notes  Calendar Tasks Weather
-     │      │      │      │
-     └──────┴──────┴──────┘
-              │
-         Gemini AI
-         (gemini-2.0-flash)
-              │
-         Cloud Sync
-         (Ktor server)
+┌─────────────────────────────────────────────┐
+│          Android App  (Jetpack Compose)      │
+│   Notes · Calendar · Tasks · Weather · …    │
+└──────────────────────┬──────────────────────┘
+                       │
+             ┌─────────▼──────────┐
+             │   AgentOS Core     │
+             │  (JVM / Kotlin)    │
+             └──┬──┬──┬──┬──┬──┬─┘
+                │  │  │  │  │  │  │
+             Notes Cal Tasks Weather Email Msg Finance
+                │  │  │  │  │  │  │
+             ┌──┴──┴──┴──┴──┴──┴──┴──┐
+             │  FileStorage (per-agent)│
+             │  Gemini 2.0 Flash (AI)  │
+             │  Ktor Sync Server       │
+             └─────────────────────────┘
 ```
+
+---
+
+## Agents
+
+| Agent | Key Commands |
+|-------|-------------|
+| **Notes** | `create note: title \| content` · `list notes` · `search notes <q>` · `get note <id>` |
+| **Calendar** | `schedule <event> on <date> at <time>` · `list events` · `cancel event <id>` |
+| **Tasks** | `add task: <title> [priority: high] [due: tomorrow]` · `list tasks` · `due today` |
+| **Weather** | `weather London` · `forecast Tokyo` |
+| **Email** | `compose email: to \| subject \| body` · `list inbox` · `reply to <id> \| body` |
+| **Messaging** | `send message: Alice \| Hey!` · `list conversations` · `read conversation Alice` |
+| **Finance** | `add expense: Coffee \| 4.50 \| Food` · `budget summary` · `spending by category` |
+
+All agents fall back to Gemini conversation for unrecognized input.
+
+---
 
 ## Quick Start
 
 ### Requirements
 - JDK 17+
 - Android Studio (for Android builds)
-- Gradle 8.7+
+- [Gemini API key](https://aistudio.google.com) (free)
 
-### Build & Run (JVM)
+### JVM CLI
 ```bash
 git clone https://github.com/camster91/AgentOS
 cd AgentOS
-./gradlew :core:run
-```
-
-### Build Android APK
-```bash
-./gradlew :android:assembleDebug
-# APK at: android/build/outputs/apk/debug/android-debug.apk
-```
-
-### Run Sync Server
-```bash
-./gradlew :sync:run
-# Server starts on port 8080
-```
-
-## Agents
-
-| Agent | Capabilities |
-|-------|-------------|
-| **NotesAgent** | Create, read, update, delete notes. AI-powered natural language management. |
-| **CalendarAgent** | Schedule events, check availability, set reminders. Date-aware AI assistant. |
-| **TasksAgent** | Manage to-dos, priorities, and deadlines. Productivity-focused AI. |
-| **WeatherAgent** | Conversational weather queries via Open-Meteo API. |
-
-## AI Integration
-
-All agents use Google Gemini 2.0 Flash via the `agents/ai-core` module. Set your API key:
-
-```bash
 export GEMINI_API_KEY=your_key_here
+gradle :core:run --no-daemon
 ```
 
-Or pass it directly in code. Agents fall back to rule-based responses if the API is unavailable.
+### Android
+1. Open in Android Studio
+2. Copy `local.properties.example` → `local.properties` and fill in your keystore details
+3. Run on device or emulator — you'll be prompted for your Gemini API key on first launch
+
+### Sync Server (optional)
+```bash
+gradle :sync:run --no-daemon
+# Starts on http://localhost:8080
+```
+
+---
+
+## Build
+
+```bash
+# Build JVM modules (no Android plugin required)
+gradle :core:build :sync:build :agents:ai-core:build --no-daemon
+
+# Run tests
+gradle :core:test :sync:test --no-daemon
+
+# Android APK (requires Android Studio / Google Maven)
+gradle :android:assembleDebug --no-daemon
+```
+
+CI handles Android builds automatically on push.
+
+---
 
 ## Modules
 
 | Module | Description |
 |--------|-------------|
-| `:core` | Agent runtime, storage, conversation memory, all 4 agents |
-| `:agents:ai-core` | GeminiClient, ChatTurn data class |
-| `:android` | Jetpack Compose chat UI, APK |
-| `:sync` | Ktor sync server + OkHttp sync client |
-| `:api` | Shared API interfaces |
+| `:api` | Shared interfaces: `Agent`, `AgentScope`, `StorageAPI`, `ChatMessage` |
+| `:agents:ai-core` | `GeminiClient` — Gemini 2.0 Flash via OkHttp REST |
+| `:core` | JVM runtime: registry, storage, sandbox, all 7 agents, CLI |
+| `:sync` | Ktor HTTP sync server + OkHttp sync client |
+| `:android` | Jetpack Compose Android app — chat UI, settings, onboarding |
+
+---
+
+## Project Structure
+
+```
+AgentOS/
+├── api/                     # Shared interfaces
+├── agents/ai-core/          # GeminiClient
+├── core/
+│   └── src/main/kotlin/com/agentOS/
+│       ├── core/            # AgentOS, AgentRegistry, EventBus, PermissionManager
+│       ├── agents/          # 7 agent implementations
+│       └── core/storage/    # FileStorage, InMemoryStorage
+├── sync/                    # Ktor server + OkHttp client
+└── android/
+    ├── src/main/java/       # AgentOSApplication
+    └── src/main/kotlin/     # ChatViewModel, Navigation, UI screens
+```
+
+---
+
+## Configuration
+
+### API Key
+- **Android:** Enter on first launch, or update in Settings → Gemini API Key
+- **JVM CLI:** `export GEMINI_API_KEY=your_key_here`
+- Get a free key at [aistudio.google.com](https://aistudio.google.com)
+
+### Release Signing (Android)
+Copy `local.properties.example` → `local.properties`:
+```properties
+KEYSTORE_PATH=path/to/your.jks
+KEYSTORE_PASSWORD=yourpassword
+KEY_ALIAS=youralias
+KEY_PASSWORD=yourkeypassword
+```
+`local.properties` is gitignored and never committed.
+
+---
+
+## Adding a New Agent
+
+See [DEVELOPER.md](DEVELOPER.md) and [CLAUDE.md](CLAUDE.md) for the full guide. In short:
+
+1. Create `core/src/main/kotlin/com/agentOS/agents/MyAgent.kt` extending `Agent()`
+2. Register in `Main.kt` (JVM CLI) and `AgentOSApplication.kt` (Android)
+3. Add display name to `ChatViewModel.agentList` and `SettingsScreen.allAgents`
+4. Write tests in `core/src/test/kotlin/com/agentOS/agents/MyAgentTest.kt`
+
+---
 
 ## Contributing
 
 1. Fork the repo
 2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Add tests for new agents or features
-4. Run `./gradlew build test` — must pass
+3. Add tests — all new agents need a corresponding `*AgentTest.kt`
+4. Run `gradle :core:test :sync:test --no-daemon` — must pass
 5. Open a PR against `main`
 
-See [DEVELOPER.md](DEVELOPER.md) for architecture details.
+See [DEVELOPER.md](DEVELOPER.md) for architecture details and [CLAUDE.md](CLAUDE.md) for AI-assisted development guidelines.
+
+---
+
+## Privacy
+
+AgentOS stores all data locally on your device. See [PRIVACY_POLICY.md](PRIVACY_POLICY.md) for full details.
+
+---
+
+## License
+
+MIT License — see [LICENSE](LICENSE) for details.

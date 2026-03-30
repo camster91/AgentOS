@@ -2,9 +2,16 @@ name: Build & Test
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, 'claude/**', 'feature/**', 'fix/**' ]
   pull_request:
     branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: 'Run tests'
+        required: false
+        default: 'true'
+        type: boolean
 
 jobs:
   build:
@@ -22,12 +29,21 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
 
-    - name: Build with Gradle
-      run: gradle build -x test --no-daemon || ./gradlew build -x test --no-daemon
+    - name: Build JVM modules
+      run: gradle :core:build :sync:build :agents:ai-core:build -x test --no-daemon
 
     - name: Run Unit Tests
-      run: gradle test --no-daemon || ./gradlew test --no-daemon
-      continue-on-error: true
+      run: gradle :core:test :sync:test --no-daemon
+
+    - name: Upload test reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-reports
+        path: |
+          **/build/reports/tests/
+          **/build/test-results/
+        if-no-files-found: ignore
 
     - name: Upload build artifacts
       if: always()
@@ -36,12 +52,75 @@ jobs:
         name: build-artifacts
         path: |
           **/build/outputs/
-          **/build/reports/
+          **/build/libs/
+        if-no-files-found: ignore
+
+  android-release:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+
+    - name: Decode keystore
+      if: env.KEYSTORE_BASE64 != ''
+      env:
+        KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      run: echo "$KEYSTORE_BASE64" | base64 --decode > android/agentOS-release.jks
+
+    - name: Write local.properties
+      if: env.KEYSTORE_PASSWORD != ''
+      env:
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      run: |
+        echo "KEYSTORE_PATH=agentOS-release.jks" >> local.properties
+        echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> local.properties
+        echo "KEY_ALIAS=$KEY_ALIAS" >> local.properties
+        echo "KEY_PASSWORD=$KEY_PASSWORD" >> local.properties
+
+    - name: Build release APK
+      run: gradle :android:assembleRelease --no-daemon
+
+    - name: Upload release APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: agentos-release-apk
+        path: android/build/outputs/apk/release/*.apk
         if-no-files-found: ignore
 
   security:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Run security checks
-      run: grep -r "api_key\|password\|secret" --include="*.kt" --include="*.java" . || echo "No hardcoded secrets found"
+
+    - name: Scan for hardcoded secrets
+      run: |
+        if grep -r --include="*.kt" --include="*.java" --include="*.gradle.kts" \
+          -E '(api_key|apiKey|password|secret)\s*=\s*"[A-Za-z0-9+/]{20,}"' \
+          --exclude-dir=".git" \
+          --exclude-dir="build" . ; then
+          echo "ERROR: Potential hardcoded secret found!"
+          exit 1
+        else
+          echo "No hardcoded secrets detected."
+        fi
+
+    - name: Check .gitignore covers sensitive files
+      run: |
+        for pattern in "*.jks" "*.keystore" "local.properties" "key.properties"; do
+          if ! grep -q "$pattern" .gitignore; then
+            echo "WARNING: $pattern not in .gitignore"
+          fi
+        done
+        echo "Gitignore check complete."

@@ -16,16 +16,20 @@ android {
         applicationId = "com.agentOS.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 3
+        versionName = "0.3.0"
     }
 
     signingConfigs {
         create("release") {
-            storeFile = file("agentOS-release.jks")
-            storePassword = "agentOS"
-            keyAlias = "agentOS"
-            keyPassword = "agentOS"
+            val localProps = java.util.Properties()
+            val localPropsFile = rootProject.file("local.properties")
+            if (localPropsFile.exists()) localProps.load(localPropsFile.inputStream())
+
+            storeFile = (localProps.getProperty("KEYSTORE_PATH") ?: "agentOS-release.jks").let { file(it) }
+            storePassword = localProps.getProperty("KEYSTORE_PASSWORD", "agentOS")
+            keyAlias = localProps.getProperty("KEY_ALIAS", "agentOS")
+            keyPassword = localProps.getProperty("KEY_PASSWORD", "agentOS")
         }
     }
 
@@ -60,6 +64,9 @@ android {
 }
 
 dependencies {
+    implementation(project(":core"))
+    implementation(project(":agents:ai-core"))
+
     val composeVersion = "1.7.0"
 
     implementation("androidx.compose.ui:ui:$composeVersion")

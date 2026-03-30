@@ -1,0 +1,21 @@
+# local.properties.example
+#
+# Copy this file to local.properties and fill in your values.
+# local.properties is gitignored — never commit it.
+#
+# Required for Android release builds only.
+# Debug builds work without these settings.
+
+## Android Release Signing
+# Path to your .jks keystore file (absolute or relative to android/ module)
+KEYSTORE_PATH=android/agentOS-release.jks
+
+# Keystore credentials
+KEYSTORE_PASSWORD=your_keystore_password
+KEY_ALIAS=your_key_alias
+KEY_PASSWORD=your_key_password
+
+## Gemini API Key (JVM CLI only — Android reads from SharedPreferences)
+# Get a free key at: https://aistudio.google.com
+# Usage: gradle :core:run -Pgemini.api.key=AIza...
+# Or:    export GEMINI_API_KEY=AIza...

@@ -21,6 +21,7 @@ fun AgentSelectorBar(
     selectedAgent: String,
     onAgentSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
+    onAddAgent: () -> Unit = {},
 ) {
     Row(
         modifier = modifier
@@ -45,7 +46,7 @@ fun AgentSelectorBar(
         }
         FilterChip(
             selected = false,
-            onClick = { /* TODO: add agent */ },
+            onClick = onAddAgent,
             label = { Text("+") },
             colors = FilterChipDefaults.filterChipColors(
                 containerColor = MaterialTheme.colorScheme.surface,
